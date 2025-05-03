@@ -7,7 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kujtimiihoxha/vimtea"
 )
 
 type consoleMsg string
@@ -25,7 +24,7 @@ func replStartCmd(repl *TidalRepl) tea.Cmd {
 }
 
 type App struct {
-	editor  vimtea.Editor
+	editor  *Editor
 	repl    *TidalRepl
 	console *Console
 }
@@ -41,11 +40,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.console.SetSize(msg.Width, 10)
-		ed, cmd := a.editor.SetSize(msg.Width, msg.Height-10) // Reserve space for console
-		a.editor = ed.(vimtea.Editor)
-		return a, tea.Batch(
-			cmd,
-		)
+		_, cmd := a.editor.SetSize(msg.Width, msg.Height-10) // Reserve space for console
+		return a, cmd
 
 	case consoleMsg:
 		log.Printf("Console message: %s", msg)
@@ -57,8 +53,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, tea.Quit
 		}
 	}
-	editor, cmd := a.editor.Update(msg)
-	a.editor = editor.(vimtea.Editor)
+	_, cmd := a.editor.Update(msg)
 	return a, cmd
 }
 
@@ -71,44 +66,12 @@ func (a *App) View() string {
 }
 
 func main() {
+	repl := NewTidalRepl()
 	a := &App{
-		editor:  vimtea.NewEditor(),
-		repl:    NewTidalRepl(),
-		console: NewConsole(0, 10), // Adjust width and height as needed
+		repl:    repl,
+		console: NewConsole(0, 10),
+		editor:  NewEditor(repl.Send),
 	}
-
-	a.editor.AddBinding(vimtea.KeyBinding{
-		Key:         "ctrl+e",
-		Mode:        vimtea.ModeNormal,
-		Description: "Send buffer to tidal",
-		Handler: func(b vimtea.Buffer) tea.Cmd {
-			if err := a.repl.Send(b.Text()); err != nil {
-				return vimtea.SetStatusMsg(fmt.Sprintf("Error sending command: %v", err))
-			}
-			return vimtea.SetStatusMsg("sent!")
-		},
-	})
-
-	a.editor.AddBinding(vimtea.KeyBinding{
-		Key:         "ctrl+h",
-		Mode:        vimtea.ModeNormal,
-		Description: "Hush",
-		Handler: func(b vimtea.Buffer) tea.Cmd {
-			if err := a.repl.Send("hush"); err != nil {
-				return vimtea.SetStatusMsg(fmt.Sprintf("Error sending command: %v", err))
-			}
-			return vimtea.SetStatusMsg("Hushed!")
-		},
-	})
-
-	a.editor.AddBinding(vimtea.KeyBinding{
-		Key:         "ctrl+s",
-		Mode:        vimtea.ModeNormal,
-		Description: "Save file",
-		Handler: func(b vimtea.Buffer) tea.Cmd {
-			return vimtea.SetStatusMsg("File saved!")
-		},
-	})
 
 	defer a.repl.Stop()
 
