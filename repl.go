@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os/exec"
+	"strings"
 )
 
 // TidalRepl starts the tidal process and sends commands to it via stdin and captures its output via stdout.
@@ -80,9 +81,11 @@ func (r *TidalRepl) Output() <-chan string {
 }
 
 func (r *TidalRepl) Send(cmd string) error {
+	// replace tab with spaces
+	cmd = strings.ReplaceAll(cmd, "\t", "  ")
 	if _, err := r.stdin.Write([]byte(cmd + "\n")); err != nil {
 		return err
 	}
-	r.out <- cmd 
+	r.out <- cmd
 	return nil
 }
