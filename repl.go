@@ -2,48 +2,64 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
 // TidalRepl starts the tidal process and sends commands to it via stdin and captures its output via stdout.
 type TidalRepl struct {
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	stderr io.ReadCloser
-	out    chan string
+	cmd      *exec.Cmd
+	stdin    io.WriteCloser
+	stdout   io.ReadCloser
+	stderr   io.ReadCloser
+	out      chan string
+	bootFile string // Path to the boot file, if any
 }
 
-func NewTidalRepl() *TidalRepl {
-	cmd := exec.Command("tidal")
+func NewTidalRepl(bootFile string) *TidalRepl {
+	return &TidalRepl{
+		out:      make(chan string, 100),
+		bootFile: bootfile,
+	}
+}
 
-	stdin, err := cmd.StdinPipe()
+func (r *TidalRepl) buildCmd() *exec.Cmd {
+	if r.bootFile != "" {
+		cmd := exec.Command("ghci", "-ghci-script", r.bootFile)
+		cmd.Dir = filepath.Dir(r.bootFile)
+		return cmd
+	}
+	log.Println("no BootTidal.hs, launching without")
+	return exec.Command("tidal")
+}
+
+func (r *TidalRepl) Start() error {
+	if r.bootFile == "" {
+		r.bootFile, _ = findFileUpwards("BootTidal.hs")
+	}
+
+	r.cmd = r.buildCmd()
+	var err error
+
+	r.stdin, err = r.cmd.StdinPipe()
 	if err != nil {
 		log.Fatalf("Failed to create stdin pipe: %v", err)
 	}
 
-	stdout, err := cmd.StdoutPipe()
+	r.stdout, err = r.cmd.StdoutPipe()
 	if err != nil {
 		log.Fatalf("Failed to create stdout pipe: %v", err)
 	}
-	stderr, err := cmd.StderrPipe()
+	r.stderr, err = r.cmd.StderrPipe()
 	if err != nil {
 		log.Fatalf("Failed to create stderr pipe: %v", err)
 	}
 
-	return &TidalRepl{
-		cmd:    cmd,
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
-		out:    make(chan string, 100),
-	}
-}
-
-func (r *TidalRepl) Start() error {
 	log.Println("Starting Tidal REPL...")
 	if err := r.cmd.Start(); err != nil {
 		return err
@@ -51,6 +67,7 @@ func (r *TidalRepl) Start() error {
 
 	go r.readOutput(r.stdout)
 	go r.readOutput(r.stderr)
+
 	return nil
 }
 

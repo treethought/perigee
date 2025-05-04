@@ -8,8 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var bootfile = ""
+
 func main() {
-	repl := NewTidalRepl()
+	repl := NewTidalRepl(bootfile)
 	a := NewApp(repl)
 
 	defer a.repl.Stop()
@@ -22,9 +24,9 @@ func main() {
 	defer f.Close()
 
 	p := tea.NewProgram(a,
-    tea.WithAltScreen(),
-    tea.WithMouseCellMotion(),
-    )
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
 	if _, err := p.Run(); err != nil {
 		log.Fatal(err)
 	}
