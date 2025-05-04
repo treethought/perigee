@@ -79,6 +79,7 @@ func (a *App) SetActive(m tea.Model) {
 }
 
 func (a *App) Init() tea.Cmd {
+
 	a.SetActive(a.editor)
 	a.editor.e.SetMode(vimtea.ModeInsert)
 	return tea.Batch(
@@ -86,6 +87,7 @@ func (a *App) Init() tea.Cmd {
 		sclangStartCmd(a.sclang),
 		listenConsole(a.repl.out),
 		listenSclang(a.sclang.out),
+		a.editor.load("perigee.tidal"),
 	)
 }
 
@@ -136,7 +138,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a *App) View() string {
-
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		a.editor.e.View(),

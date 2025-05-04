@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -86,11 +88,36 @@ func NewEditor(send sendFunc) *Editor {
 		Mode:        vimtea.ModeNormal,
 		Description: "Save file",
 		Handler: func(b vimtea.Buffer) tea.Cmd {
-			return vimtea.SetStatusMsg("File saved!")
+			return m.save("perigee.tidal", b.Text())
 		},
 	})
 
 	return m
+}
+
+func (m *Editor) load(fname string) tea.Cmd {
+	return func() tea.Msg {
+		content, err := os.ReadFile(fname)
+		if err != nil {
+      log.Printf("Error loading file %s: %v", fname, err)
+			return m.e.SetStatusMessage(fmt.Sprintf("Error loading file: %v", err))
+		}
+		m.e.GetBuffer().InsertAt(0, 0, string(content))
+    log.Printf("File %s loaded successfully", fname)
+		return m.e.SetStatusMessage(fmt.Sprintf("File %s loaded!", fname))
+	}
+}
+
+func (m *Editor) save(fname string, content string) tea.Cmd {
+	return func() tea.Msg {
+		err := os.WriteFile(fname, []byte(content), 0644)
+		if err != nil {
+			log.Printf("Error saving file %s: %v", fname, err)
+			return m.e.SetStatusMessage(fmt.Sprintf("Error saving file: %v", err))
+		}
+		log.Printf("File %s saved successfully", fname)
+		return m.e.SetStatusMessage(fmt.Sprintf("File %s saved!", fname))
+	}
 }
 
 func (m *Editor) SetSize(width, height int) (vimtea.Editor, tea.Cmd) {
