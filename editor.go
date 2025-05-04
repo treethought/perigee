@@ -17,8 +17,14 @@ type Editor struct {
 func NewEditor(send sendFunc) *Editor {
 	m := &Editor{
 		send: send,
-		e:    vimtea.NewEditor(),
+		e:    vimtea.NewEditor(vimtea.WithFileName("tidal.hs")),
 	}
+
+	m.e.AddCommand("q", func(b vimtea.Buffer, a []string) tea.Cmd {
+		return func() tea.Msg {
+			return tea.Quit()
+		}
+	})
 
 	m.e.AddBinding(vimtea.KeyBinding{
 		Key:         "ctrl+e",
