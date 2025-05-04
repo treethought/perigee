@@ -98,11 +98,61 @@ func (r *TidalRepl) Output() <-chan string {
 }
 
 func (r *TidalRepl) Send(cmd string) error {
-	// replace tab with spaces
-	cmd = strings.ReplaceAll(cmd, "\t", "  ")
-	if _, err := r.stdin.Write([]byte(cmd + "\n")); err != nil {
+	escaped := r.escapeText(cmd)
+	if _, err := r.stdin.Write([]byte(escaped)); err != nil {
 		return err
 	}
 	r.out <- cmd
 	return nil
+}
+
+// escapeTextTidal mimics the vim-tidal _EscapeText_tidal function
+func (r *TidalRepl) escapeText(text string) string {
+	// tabs aren't allowed
+	text = strings.ReplaceAll(text, "\t", "  ")
+	lines := strings.Split(text, "\n")
+
+	lines = r.wrapIfMulti(lines)
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// wrapIfMulti wraps lines in :{ :} if there's more than one line
+func (r *TidalRepl) wrapIfMulti(lines []string) []string {
+	if len(lines) > 1 {
+		// Prepend :{ and append :}
+		wrapped := make([]string, 0, len(lines)+2)
+		wrapped = append(wrapped, ":{")
+		wrapped = append(wrapped, lines...)
+		wrapped = append(wrapped, ":}")
+		return wrapped
+	}
+	return lines
+}
+
+func findFileUpwards(filename string) (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		path := filepath.Join(dir, filename)
+
+		// Check if file exists
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+
+		// Get parent directory
+		parent := filepath.Dir(dir)
+
+		// If we've reached the root, stop
+		if parent == dir {
+			break
+		}
+
+		dir = parent
+	}
+
+	return "", fmt.Errorf("file %s not found", filename)
 }
