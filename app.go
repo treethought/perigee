@@ -84,7 +84,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 
 	case consoleMsg:
-		log.Printf("Console message: %s", msg)
 		a.console.AddLine(string(msg))
 		return a, listenConsole(a.repl.out)
 
