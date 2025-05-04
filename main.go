@@ -12,9 +12,11 @@ var bootfile = ""
 
 func main() {
 	repl := NewTidalRepl(bootfile)
-	a := NewApp(repl)
+	sclang := NewSCLangRepl("")
+	a := NewApp(repl, sclang)
 
 	defer a.repl.Stop()
+	defer a.sclang.Stop()
 
 	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {

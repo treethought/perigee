@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -10,10 +8,23 @@ import (
 )
 
 type consoleMsg string
+type sclangMsg string
+
+func listenSclang(ch chan string) tea.Cmd {
+	return func() tea.Msg {
+		return sclangMsg(<-ch)
+	}
+}
 
 func listenConsole(ch chan string) tea.Cmd {
 	return func() tea.Msg {
 		return consoleMsg(<-ch)
+	}
+}
+
+func sclangStartCmd(sclang *SCLangRepl) tea.Cmd {
+	return func() tea.Msg {
+		return sclang.Start()
 	}
 }
 
@@ -45,17 +56,21 @@ var defaultKeyMap = keyMap{
 }
 
 type App struct {
-	editor  *Editor
-	repl    *TidalRepl
-	console *Console
-	active  tea.Model
+	editor    *Editor
+	repl      *TidalRepl
+	console   *Console
+	sclang    *SCLangRepl
+	scConsole *Console
+	active    tea.Model
 }
 
-func NewApp(repl *TidalRepl) *App {
+func NewApp(repl *TidalRepl, sclang *SCLangRepl) *App {
 	return &App{
-		repl:    repl,
-		console: NewConsole(0, 10),
-		editor:  NewEditor(repl.Send),
+		repl:      repl,
+		sclang:    sclang,
+		console:   NewConsole(0, 10),
+		scConsole: NewConsole(10, 0),
+		editor:    NewEditor(repl.Send),
 	}
 }
 
@@ -68,24 +83,32 @@ func (a *App) Init() tea.Cmd {
 	a.editor.e.SetMode(vimtea.ModeInsert)
 	return tea.Batch(
 		replStartCmd(a.repl),
+		sclangStartCmd(a.sclang),
 		listenConsole(a.repl.out),
+		listenSclang(a.sclang.out),
 	)
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		ch := msg.Height / 4
+		ch := msg.Height / 8
 		if ch < 10 {
 			ch = 10
 		}
 		a.console.SetSize(msg.Width, ch)
-		_, cmd := a.editor.SetSize(msg.Width, msg.Height-ch) // Reserve space for console
+		a.scConsole.SetSize(msg.Width, ch)
+
+		_, cmd := a.editor.SetSize(msg.Width, msg.Height-(ch*2)) // Reserve space for console
 		return a, cmd
 
 	case consoleMsg:
 		a.console.AddLine(string(msg))
 		return a, listenConsole(a.repl.out)
+
+	case sclangMsg:
+		a.scConsole.AddLine(string(msg))
+		return a, listenSclang(a.sclang.out)
 
 	case tea.KeyMsg:
 		if a.active == nil {
@@ -101,11 +124,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, defaultKeyMap.Quit):
 			return a, tea.Quit
 		case key.Matches(msg, defaultKeyMap.FocusEditor):
-			log.Print("switching focus to editor")
 			a.active = a.editor
 			return a, a.editor.e.SetStatusMessage("")
 		case key.Matches(msg, defaultKeyMap.FocusConsole):
-			log.Print("switching focus to console")
 			a.active = a.console
 			return a, a.editor.e.SetStatusMessage("console focused")
 		}
@@ -120,5 +141,6 @@ func (a *App) View() string {
 		lipgloss.Left,
 		a.editor.e.View(),
 		a.console.View(),
+		a.scConsole.View(),
 	)
 }

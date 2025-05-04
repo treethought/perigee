@@ -1,11 +1,17 @@
 package main
 
 import (
-	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	consoleStyle = lipgloss.NewStyle().
+		Padding(0, 1).
+		Border(lipgloss.NormalBorder(), true)
 )
 
 type Console struct {
@@ -21,9 +27,9 @@ func NewConsole(width, height int) *Console {
 }
 
 func (c *Console) SetSize(width, height int) {
-	log.Printf("Setting console size to %dx%d", width, height)
-	c.viewport.Width = width
-	c.viewport.Height = height
+	sx, sy := consoleStyle.GetFrameSize()
+	c.viewport.Width = width - sx
+	c.viewport.Height = height - sy
 	c.viewport.SetContent(strings.Join(c.Lines, "\n"))
 	c.viewport.GotoBottom()
 }
@@ -45,5 +51,5 @@ func (c *Console) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c *Console) View() string {
-	return c.viewport.View()
+	return consoleStyle.Render(c.viewport.View())
 }
