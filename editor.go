@@ -99,11 +99,11 @@ func (m *Editor) load(fname string) tea.Cmd {
 	return func() tea.Msg {
 		content, err := os.ReadFile(fname)
 		if err != nil {
-      log.Printf("Error loading file %s: %v", fname, err)
+			log.Printf("Error loading file %s: %v", fname, err)
 			return m.e.SetStatusMessage(fmt.Sprintf("Error loading file: %v", err))
 		}
 		m.e.GetBuffer().InsertAt(0, 0, string(content))
-    log.Printf("File %s loaded successfully", fname)
+		log.Printf("File %s loaded successfully", fname)
 		return m.e.SetStatusMessage(fmt.Sprintf("File %s loaded!", fname))
 	}
 }

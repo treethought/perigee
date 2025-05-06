@@ -35,9 +35,10 @@ func replStartCmd(repl *TidalRepl) tea.Cmd {
 }
 
 type keyMap struct {
-	Quit         key.Binding
-	FocusEditor  key.Binding
-	FocusConsole key.Binding
+	Quit             key.Binding
+	FocusEditor      key.Binding
+	FocusConsole     key.Binding
+	FocusQuickSelect key.Binding
 }
 
 var defaultKeyMap = keyMap{
@@ -53,15 +54,21 @@ var defaultKeyMap = keyMap{
 		key.WithKeys("2"),
 		key.WithHelp("2", "focus console"),
 	),
+	FocusQuickSelect: key.NewBinding(
+		key.WithKeys("ctrl+o"),
+		key.WithHelp("ctrl+o", "open quick select"),
+	),
 }
 
 type App struct {
-	editor    *Editor
-	repl      *TidalRepl
-	console   *Console
-	sclang    *SCLangRepl
-	scConsole *Console
-	active    tea.Model
+	editor        *Editor
+	repl          *TidalRepl
+	console       *Console
+	sclang        *SCLangRepl
+	scConsole     *Console
+	qs            *QuickSelect
+	active        tea.Model
+	activeConsole *Console
 }
 
 func NewApp(repl *TidalRepl, sclang *SCLangRepl) *App {
@@ -71,6 +78,7 @@ func NewApp(repl *TidalRepl, sclang *SCLangRepl) *App {
 		console:   NewConsole(0, 10),
 		scConsole: NewConsole(10, 0),
 		editor:    NewEditor(repl.Send),
+		qs:        NewQuickSelect(),
 	}
 }
 
@@ -78,11 +86,32 @@ func (a *App) SetActive(m tea.Model) {
 	a.active = m
 }
 
-func (a *App) Init() tea.Cmd {
+func (a *App) setActiveConsole(val string) {
+	switch val {
+	case "sclang":
+		a.activeConsole = a.scConsole
+	case "console":
+		a.activeConsole = a.console
+	default:
+		a.activeConsole = a.console
+	}
+}
 
+func (a *App) Init() tea.Cmd {
+	a.activeConsole = a.console
 	a.SetActive(a.editor)
 	a.editor.e.SetMode(vimtea.ModeInsert)
+	a.qs.SetOnSelect(func(item *selectItem) tea.Cmd {
+		if item == nil {
+			return nil
+		}
+		a.setActiveConsole(item.value)
+		a.qs.SetActive(false)
+		return nil
+	})
+
 	return tea.Batch(
+		a.qs.Init(),
 		replStartCmd(a.repl),
 		sclangStartCmd(a.sclang),
 		listenConsole(a.repl.out),
@@ -94,6 +123,8 @@ func (a *App) Init() tea.Cmd {
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		a.qs.SetSize(msg.Width/2, msg.Height/2)
+
 		ch := msg.Height / 8
 		if ch < 10 {
 			ch = 10
@@ -101,7 +132,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.console.SetSize(msg.Width, ch)
 		a.scConsole.SetSize(msg.Width, ch)
 
-		_, cmd := a.editor.SetSize(msg.Width, msg.Height-(ch*2)) // Reserve space for console
+		_, cmd := a.editor.SetSize(msg.Width, msg.Height-(ch)) // Reserve space for console
 		return a, cmd
 
 	case consoleMsg:
@@ -123,25 +154,36 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch {
+		case key.Matches(msg, defaultKeyMap.FocusQuickSelect):
+			a.qs.SetActive(true)
+			a.active = a.qs
+			return a, nil
 		case key.Matches(msg, defaultKeyMap.Quit):
 			return a, tea.Quit
 		case key.Matches(msg, defaultKeyMap.FocusEditor):
 			a.active = a.editor
 			return a, a.editor.e.SetStatusMessage("")
 		case key.Matches(msg, defaultKeyMap.FocusConsole):
-			a.active = a.console
+			a.active = a.activeConsole
 			return a, a.editor.e.SetStatusMessage("console focused")
 		}
 	}
 	_, cmd := a.active.Update(msg)
+	if a.activeConsole != nil {
+		_, ccmd := a.activeConsole.Update(msg)
+		return a, tea.Batch(cmd, ccmd)
+	}
 	return a, cmd
 }
 
 func (a *App) View() string {
+	if a.qs.Active() {
+		return a.qs.View()
+	}
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		a.editor.e.View(),
-		a.console.View(),
-		a.scConsole.View(),
+		a.activeConsole.View(),
 	)
 }
