@@ -141,7 +141,6 @@ func (a *App) playAudio(path string) tea.Cmd {
 func (a *App) Init() tea.Cmd {
 	a.activeConsole = a.console
 	a.SetActive(a.editor)
-	a.editor.e.SetMode(vimtea.ModeInsert)
 	a.qs.SetOnSelect(func(item *selectItem) tea.Cmd {
 		if item == nil {
 			return nil

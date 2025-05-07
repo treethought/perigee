@@ -36,6 +36,32 @@ func NewEditor(send sendFunc) *Editor {
 			return tea.Quit()
 		}
 	})
+
+	m.e.AddBinding(vimtea.KeyBinding{
+		Key:         "ctrl+_",
+		Mode:        vimtea.ModeNormal,
+		Description: "Comment line",
+		Handler: func(b vimtea.Buffer) tea.Cmd {
+			cursor := m.e.GetCursor()
+			lines := b.Lines()
+
+			if len(lines) == 0 || cursor.Row >= len(lines) {
+				return nil
+			}
+
+			line := lines[cursor.Row]
+			trimmedLine := strings.TrimLeft(line, " \t")
+			indentSize := len(line) - len(trimmedLine)
+
+			commentPrefix := "-- "
+			if strings.HasPrefix(trimmedLine, commentPrefix) {
+				b.DeleteAt(cursor.Row, indentSize, cursor.Row, indentSize+2)
+				return nil
+			}
+			b.InsertAt(cursor.Row, indentSize, commentPrefix)
+			return nil
+		},
+	})
 	m.e.AddBinding(vimtea.KeyBinding{
 		Key:         "ctrl+e",
 		Mode:        vimtea.ModeNormal,

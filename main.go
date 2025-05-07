@@ -11,7 +11,7 @@ import (
 var cfg = &Config{
 	Bootfile:      "~/livecoding/tidal/BootTidal.hs",
 	TidalFilesDir: "~/livecoding/tidal",
-	SamplesDir: "~/livecoding/tidalsamples",
+	SamplesDir:    "~/livecoding/tidalsamples",
 }
 
 func main() {

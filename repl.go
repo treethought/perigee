@@ -60,7 +60,7 @@ func (r *TidalRepl) Start() error {
 		log.Fatalf("Failed to create stderr pipe: %v", err)
 	}
 
-  log.Printf("Starting Tidal REPL: %s %s", r.cmd.Path, r.cmd.Args)
+	log.Printf("Starting Tidal REPL: %s %s", r.cmd.Path, r.cmd.Args)
 	if err := r.cmd.Start(); err != nil {
 		log.Printf("Failed to start Tidal REPL: %v", err)
 		return err
