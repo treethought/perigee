@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -23,10 +22,19 @@ type audioFile struct {
 	selected bool
 }
 
+func (a *audioFile) Row(ref string) table.Row {
+	// todo pass in cols to truncate based on cols widths
+	return table.Row{
+		ref,
+		a.name,
+		a.path,
+	}
+}
+
 type audioBrowserKeyMap struct {
 	Up       key.Binding
 	Down     key.Binding
-	Play     key.Binding
+	Select   key.Binding
 	Back     key.Binding
 	Quit     key.Binding
 	GoToRoot key.Binding
@@ -42,7 +50,7 @@ var defaultAudioBrowserKeyMap = audioBrowserKeyMap{
 		key.WithKeys("j", "down"),
 		key.WithHelp("↓/j", "down"),
 	),
-	Play: key.NewBinding(
+	Select: key.NewBinding(
 		key.WithKeys("enter", "space"),
 		key.WithHelp("enter/space", "play sample"),
 	),
@@ -68,10 +76,14 @@ type AudioBrowser struct {
 	t        table.Model
 	onSelect func(path string) tea.Cmd
 
-	fi           textinput.Model
-	filtering    bool
-	query        string
-	allRows      []table.Row
+	fi         textinput.Model
+	filtering  bool
+	query      string
+	setRows    []table.Row
+	sampleRows map[string][]table.Row
+	currentSet string
+
+	// allRows      []table.Row
 	filteredRows []table.Row
 	active       bool
 }
@@ -158,15 +170,19 @@ func (m *AudioBrowser) SetOnSelect(f func(path string) tea.Cmd) {
 }
 
 func (m *AudioBrowser) applyFilter() {
+	all := m.setRows
+	if m.currentSet != "" {
+		all = m.sampleRows[m.currentSet]
+	}
 	q := strings.ToLower(m.fi.Value())
 	if q == "" {
-		m.filteredRows = m.allRows
-		m.t.SetRows(m.allRows)
+		m.filteredRows = all
+		m.t.SetRows(all)
 		return
 	}
 
 	var filtered []table.Row
-	for _, row := range m.allRows {
+	for _, row := range all {
 		if strings.Contains(strings.ToLower(row[0]), q) {
 			filtered = append(filtered, row)
 		}
@@ -176,39 +192,32 @@ func (m *AudioBrowser) applyFilter() {
 }
 
 func (m *AudioBrowser) SetFiles(files map[string][]audioFile) tea.Cmd {
-	var rows []table.Row
-
-	// Sort entries: directories first, then files, all alphabetically
-	for _, samples := range files {
-		sort.Slice(samples, func(i, j int) bool {
-			return strings.ToLower(samples[i].name) < strings.ToLower(samples[j].name)
-		})
-	}
-
-  cols := m.t.Columns()
+	var sampleSetRows []table.Row
+	sampleRows := make(map[string][]table.Row)
 
 	for set, samples := range files {
-		for i, f := range samples {
-			if strings.HasPrefix(f.name, ".") {
-				continue
-			}
-
-			if _, ok := audioExts[filepath.Ext(f.path)]; !ok {
-				continue
-			}
+		sampleSetRows = append(sampleSetRows, table.Row{
+			truncate(set, 30), "", fmt.Sprintf("%d", len(files[set])),
+		})
+		sampleRows[set] = make([]table.Row, len(samples))
+		for i, sample := range samples {
 			ref := fmt.Sprintf("%s:%d", set, i)
-
-			rows = append(rows, table.Row{
-				truncate(ref, cols[0].Width),
-				truncate(f.name, cols[1].Width-5),
-				f.path,
-			})
+			sampleRows[set][i] = sample.Row(ref)
 		}
 	}
-	m.allRows = rows
-	m.filteredRows = rows
-	m.t.SetRows(rows)
-	m.t.KeyMap.PageDown.SetKeys("ctrl+f", "pgdn")
+
+	sort.Slice(sampleSetRows, func(i, j int) bool {
+		return strings.ToLower(sampleSetRows[i][0]) < strings.ToLower(sampleSetRows[j][0])
+	})
+
+	m.setRows = sampleSetRows
+	m.sampleRows = sampleRows
+	all := m.setRows
+	if m.currentSet != "" {
+		all = m.sampleRows[m.currentSet]
+	}
+	m.filteredRows = all
+	m.t.SetRows(all)
 	return nil
 }
 
@@ -246,7 +255,22 @@ func (m *AudioBrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.active = false
 			return m, nil
 
-		case key.Matches(msg, defaultAudioBrowserKeyMap.Play):
+		case key.Matches(msg, defaultAudioBrowserKeyMap.Back):
+			if m.currentSet != "" {
+				m.currentSet = ""
+				m.t.SetRows(m.setRows)
+				return m, nil
+			}
+			m.active = false
+			return m, nil
+
+		case key.Matches(msg, defaultAudioBrowserKeyMap.Select):
+			if m.currentSet == "" {
+				sampleSet := m.t.SelectedRow()[0]
+				m.currentSet = sampleSet
+				m.t.SetRows(m.sampleRows[m.currentSet])
+				return m, nil
+			}
 			row := m.t.SelectedRow()
 			path := row[2]
 
