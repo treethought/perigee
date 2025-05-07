@@ -42,24 +42,15 @@ func NewEditor(send sendFunc) *Editor {
 		Mode:        vimtea.ModeNormal,
 		Description: "Comment line",
 		Handler: func(b vimtea.Buffer) tea.Cmd {
-			cursor := m.e.GetCursor()
-			lines := b.Lines()
-
-			if len(lines) == 0 || cursor.Row >= len(lines) {
-				return nil
-			}
-
-			line := lines[cursor.Row]
-			trimmedLine := strings.TrimLeft(line, " \t")
-			indentSize := len(line) - len(trimmedLine)
-
-			commentPrefix := "-- "
-			if strings.HasPrefix(trimmedLine, commentPrefix) {
-				b.DeleteAt(cursor.Row, indentSize, cursor.Row, indentSize+2)
-				return nil
-			}
-			b.InsertAt(cursor.Row, indentSize, commentPrefix)
-			return nil
+			return m.comment(b)
+		},
+	})
+	m.e.AddBinding(vimtea.KeyBinding{
+		Key:         "ctrl+_",
+		Mode:        vimtea.ModeVisual,
+		Description: "Comment selected region",
+		Handler: func(b vimtea.Buffer) tea.Cmd {
+			return m.comment(b)
 		},
 	})
 	m.e.AddBinding(vimtea.KeyBinding{
@@ -129,6 +120,35 @@ func NewEditor(send sendFunc) *Editor {
 	return m
 }
 
+func (m *Editor) comment(b vimtea.Buffer) tea.Cmd {
+	cursor := m.e.GetCursor()
+	lines := b.Lines()
+
+	start, end := cursor, cursor
+	if m.e.GetMode() == vimtea.ModeVisual {
+		start, end = m.e.GetSelectionBoundary()
+		log.Printf("visual start: %v, end: %v", start, end)
+	}
+
+	for r := start.Row; r <= end.Row; r++ {
+		if len(lines) == 0 || r >= len(lines) {
+			continue
+		}
+
+		line := lines[r]
+		trimmedLine := strings.TrimLeft(line, " \t")
+		indentSize := len(line) - len(trimmedLine)
+
+		commentPrefix := "-- "
+		if strings.HasPrefix(trimmedLine, commentPrefix) {
+			b.DeleteAt(r, indentSize, r, indentSize+2)
+			continue
+		}
+		b.InsertAt(r, indentSize, commentPrefix)
+	}
+	return nil
+}
+
 func (m *Editor) load(fname string) tea.Cmd {
 	return func() tea.Msg {
 		content, err := os.ReadFile(fname)
@@ -163,6 +183,8 @@ func (m *Editor) Init() tea.Cmd {
 	return m.e.Init()
 }
 func (m *Editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	log.Print("editor UPDATE")
+	log.Print(msg)
 	model, cmd := m.e.Update(msg)
 	if model != nil {
 		m.e = model.(vimtea.Editor)
