@@ -11,23 +11,26 @@ import (
 	"github.com/kujtimiihoxha/vimtea"
 )
 
+var defaultFile = "perigee.tidal"
+
 type sendFunc func(s string) error
 
 type Editor struct {
-	e    vimtea.Editor
-	send sendFunc
+	e           vimtea.Editor
+	send        sendFunc
+	currentFile string
 }
 
 func NewEditor(send sendFunc) *Editor {
 	m := &Editor{
-		send: send,
+		currentFile: defaultFile,
+		send:        send,
 		e: vimtea.NewEditor(
 			vimtea.WithFileName("tidal.hs"),
+			vimtea.WithDefaultSyntaxTheme("autumn"),
 			vimtea.WithStatusStyle(
 				lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Bold(true),
 			),
-			// set text background black
-			// vimtea.WithTextStyle(lipgloss.NewStyle().Background(lipgloss.Color("#000000"))),
 		),
 	}
 
@@ -113,7 +116,7 @@ func NewEditor(send sendFunc) *Editor {
 		Mode:        vimtea.ModeNormal,
 		Description: "Save file",
 		Handler: func(b vimtea.Buffer) tea.Cmd {
-			return m.save("perigee.tidal", b.Text())
+			return m.save(m.currentFile, b.Text())
 		},
 	})
 
@@ -157,7 +160,8 @@ func (m *Editor) load(fname string) tea.Cmd {
 			return m.e.SetStatusMessage(fmt.Sprintf("Error loading file: %v", err))
 		}
 		m.e.GetBuffer().InsertAt(0, 0, string(content))
-		return m.e.SetStatusMessage(fmt.Sprintf("File %s loaded!", fname))
+		m.currentFile = fname
+		return m.e.SetStatusMessage(fname)
 	}
 }
 
@@ -169,7 +173,7 @@ func (m *Editor) save(fname string, content string) tea.Cmd {
 			return m.e.SetStatusMessage(fmt.Sprintf("Error saving file: %v", err))
 		}
 		log.Printf("File %s saved successfully", fname)
-		return m.e.SetStatusMessage(fmt.Sprintf("File %s saved!", fname))
+		return vimtea.SetStatusMsg(fmt.Sprintf("saved %s", fname))
 	}
 }
 
@@ -183,12 +187,10 @@ func (m *Editor) Init() tea.Cmd {
 	return m.e.Init()
 }
 func (m *Editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	log.Print("editor UPDATE")
-	log.Print(msg)
-	model, cmd := m.e.Update(msg)
-	if model != nil {
-		m.e = model.(vimtea.Editor)
-	}
+	_, cmd := m.e.Update(msg)
+	// if model != nil {
+	// 	m.e = model.(vimtea.Editor)
+	// }
 	return m, cmd
 }
 

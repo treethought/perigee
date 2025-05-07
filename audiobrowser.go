@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -52,8 +51,8 @@ var defaultAudioBrowserKeyMap = audioBrowserKeyMap{
 		key.WithHelp("backspace", "go back"),
 	),
 	Quit: key.NewBinding(
-		key.WithKeys("q", "esc"),
-		key.WithHelp("q/esc", "exit filter or browwer"),
+		key.WithKeys("ctrl+w"),
+		key.WithHelp("ctrl+w", "exit filter or browser"),
 	),
 	GoToRoot: key.NewBinding(
 		key.WithKeys("g"),
@@ -67,7 +66,6 @@ var defaultAudioBrowserKeyMap = audioBrowserKeyMap{
 
 type AudioBrowser struct {
 	t        table.Model
-	curDir   string
 	onSelect func(path string) tea.Cmd
 
 	fi           textinput.Model
@@ -81,10 +79,9 @@ type AudioBrowser struct {
 func NewAudioBrowser() *AudioBrowser {
 	columns := []table.Column{
 		{Title: "Ref", Width: 30},
-		{Title: "Type", Width: 10},
-		{Title: "Size", Width: 10},
 		{Title: "Name", Width: 10},
-		{Title: "Path", Width: 0},
+		// {Title: "Size", Width: 10},
+		{Title: "", Width: 0},
 	}
 
 	t := table.New(
@@ -136,6 +133,24 @@ func (m *AudioBrowser) SetSize(width, height int) {
 	m.t.SetWidth(width)
 	m.t.SetHeight(height - 2)
 	m.fi.Width = width - 5 // Adjust text input width
+
+	cols := m.t.Columns()
+
+	if width < 32 {
+		cols[0].Width = width
+	} else {
+		cols[0].Width = width / 2
+		cols[1].Width = width / 2
+		cols[2].Width = 0
+	}
+	m.t.SetColumns(cols)
+}
+
+func truncate(s string, max int) string {
+	if len(s) > max {
+		return s[:max-3] + "..."
+	}
+	return s
 }
 
 func (m *AudioBrowser) SetOnSelect(f func(path string) tea.Cmd) {
@@ -170,6 +185,8 @@ func (m *AudioBrowser) SetFiles(files map[string][]audioFile) tea.Cmd {
 		})
 	}
 
+  cols := m.t.Columns()
+
 	for set, samples := range files {
 		for i, f := range samples {
 			if strings.HasPrefix(f.name, ".") {
@@ -182,10 +199,8 @@ func (m *AudioBrowser) SetFiles(files map[string][]audioFile) tea.Cmd {
 			ref := fmt.Sprintf("%s:%d", set, i)
 
 			rows = append(rows, table.Row{
-				ref,
-				f.fileType,
-				f.size,
-				f.name,
+				truncate(ref, cols[0].Width),
+				truncate(f.name, cols[1].Width-5),
 				f.path,
 			})
 		}
@@ -233,14 +248,9 @@ func (m *AudioBrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, defaultAudioBrowserKeyMap.Play):
 			row := m.t.SelectedRow()
+			path := row[2]
 
-			path := row[4]
-			fileType := row[1]
-
-			if fileType == "DIR" {
-				log.Println("Selected directory:", path)
-				return m, nil
-			} else if m.onSelect != nil {
+			if m.onSelect != nil {
 				return m, m.onSelect(path)
 			}
 		}
@@ -260,7 +270,7 @@ func (m *AudioBrowser) View() string {
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Bold(true).
 		Padding(0, 1).
-		Render(fmt.Sprintf("Audio Browser - %s", m.curDir))
+		Render(fmt.Sprint("Sample Browser"))
 
 	var fview string
 	if m.filtering {

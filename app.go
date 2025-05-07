@@ -66,7 +66,7 @@ var defaultKeyMap = keyMap{
 	),
 	FocusAudioBrowser: key.NewBinding(
 		key.WithKeys("ctrl+w"),
-		key.WithHelp("ctrl+w", "open audio browser"),
+		key.WithHelp("ctrl+w", "toggle audio browser"),
 	),
 }
 
@@ -164,6 +164,7 @@ func (a *App) Init() tea.Cmd {
 		replStartCmd(a.repl),
 		listenConsole(a.repl.out),
 		listenSclang(a.sclang.out),
+		a.editor.Init(),
 		a.editor.load("perigee.tidal"),
 	)
 }
@@ -171,18 +172,27 @@ func (a *App) Init() tea.Cmd {
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// pop over so get desired height without calcs
 		a.qs.SetSize(msg.Width/2, msg.Height/2)
 		a.fileBrowser.SetSize(msg.Width/2, msg.Height)
-		a.sampleBrowser.SetSize(msg.Width, msg.Height)
 
+		// side samples width
+		sw := msg.Width / 3
+		if sw < 16 {
+			sw = 16
+		}
+
+		// console height
 		ch := msg.Height / 8
 		if ch < 10 {
 			ch = 10
 		}
+
 		a.console.SetSize(msg.Width, ch)
 		a.scConsole.SetSize(msg.Width, ch)
 
-		_, cmd := a.editor.SetSize(msg.Width, msg.Height-(ch)) // Reserve space for console
+		a.sampleBrowser.SetSize(sw, msg.Height-ch-2)
+		_, cmd := a.editor.SetSize(msg.Width-sw, msg.Height-(ch)) // Reserve space for console
 		return a, cmd
 
 	case consoleMsg:
@@ -194,6 +204,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, listenSclang(a.sclang.out)
 
 	case tea.KeyMsg:
+
 		if a.active == nil {
 			a.active = a.editor
 		}
@@ -215,23 +226,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.active = a.fileBrowser
 			return a, a.editor.e.SetStatusMessage("file browser focused")
 		case key.Matches(msg, defaultKeyMap.FocusAudioBrowser):
-			a.sampleBrowser.SetActive(true)
-			a.active = a.sampleBrowser
-			return a, a.editor.e.SetStatusMessage("audio browser focused")
+			a.sampleBrowser.SetActive(!a.sampleBrowser.Active())
+			if a.sampleBrowser.Active() {
+				a.active = a.sampleBrowser
+				return a, a.editor.e.SetStatusMessage("audio browser")
+			} else {
+				a.active = a.editor
+				return a, nil
+			}
 		case key.Matches(msg, defaultKeyMap.FocusEditor):
 			return a, a.focusEditor()
 		case key.Matches(msg, defaultKeyMap.FocusConsole):
 			a.active = a.activeConsole
-			return a, a.editor.e.SetStatusMessage("console focused")
+			return a, a.editor.e.SetStatusMessage("console")
 		}
 	}
 
 	cmds := []tea.Cmd{}
-
-	if a.activeConsole != nil {
-		_, ccmd := a.activeConsole.Update(msg)
-		cmds = append(cmds, ccmd)
-	}
 
 	_, cmd := a.active.Update(msg)
 	cmds = append(cmds, cmd)
@@ -247,13 +258,13 @@ func (a *App) View() string {
 		return a.fileBrowser.View()
 	}
 
-	if a.sampleBrowser.Active() {
-		return a.sampleBrowser.View()
-	}
-
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		a.editor.e.View(),
+		lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			a.editor.View(),
+			a.sampleBrowser.View(),
+		),
 		a.activeConsole.View(),
 	)
 }
