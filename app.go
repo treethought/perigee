@@ -171,6 +171,7 @@ func (a *App) Init() tea.Cmd {
 	a.sampleBrowser.SetOnSelect(a.playAudio)
 
 	return tea.Batch(
+		a.editor.Init(),
 		a.qs.Init(),
 		a.fileBrowser.Init(),
 		a.sampleBrowser.Init(),
@@ -179,7 +180,6 @@ func (a *App) Init() tea.Cmd {
 		replStartCmd(a.repl),
 		listenConsole(a.repl.out),
 		listenSclang(a.sclang.out),
-		a.editor.Init(),
 		a.editor.load("perigee.tidal"),
 	)
 }

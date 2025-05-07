@@ -159,6 +159,7 @@ func (m *Editor) load(fname string) tea.Cmd {
 			log.Printf("Error loading file %s: %v", fname, err)
 			return m.e.SetStatusMessage(fmt.Sprintf("Error loading file: %v", err))
 		}
+		m.e.GetBuffer().Clear()
 		m.e.GetBuffer().InsertAt(0, 0, string(content))
 		m.currentFile = fname
 		return m.e.SetStatusMessage(fname)
