@@ -35,12 +35,14 @@ func replStartCmd(repl *TidalRepl) tea.Cmd {
 }
 
 type keyMap struct {
-	Quit              key.Binding
-	FocusEditor       key.Binding
-	FocusConsole      key.Binding
-	FocusQuickSelect  key.Binding
-	FocusFileBrowser  key.Binding
-	FocusAudioBrowser key.Binding
+	Quit                key.Binding
+	FocusEditor         key.Binding
+	FocusConsole        key.Binding
+	ToggleReplConsole   key.Binding
+	ToggleSclangConsole key.Binding
+	FocusQuickSelect    key.Binding
+	FocusFileBrowser    key.Binding
+	ToggleAudioBrowser  key.Binding
 }
 
 var defaultKeyMap = keyMap{
@@ -54,8 +56,17 @@ var defaultKeyMap = keyMap{
 	),
 	FocusConsole: key.NewBinding(
 		key.WithKeys("2"),
-		key.WithHelp("2", "focus console"),
+		key.WithHelp("2", "toggle console focus"),
 	),
+	ToggleReplConsole: key.NewBinding(
+		key.WithKeys("ctrl+t"),
+		key.WithHelp("ctrl+t", "toggle repl console"),
+	),
+	ToggleSclangConsole: key.NewBinding(
+		key.WithKeys("ctrl+l"),
+		key.WithHelp("ctrl+l", "toggle console"),
+	),
+
 	FocusQuickSelect: key.NewBinding(
 		key.WithKeys("ctrl+o"),
 		key.WithHelp("ctrl+o", "open quick select"),
@@ -64,7 +75,7 @@ var defaultKeyMap = keyMap{
 		key.WithKeys("ctrl+f"),
 		key.WithHelp("ctrl+f", "open file browser"),
 	),
-	FocusAudioBrowser: key.NewBinding(
+	ToggleAudioBrowser: key.NewBinding(
 		key.WithKeys("ctrl+w"),
 		key.WithHelp("ctrl+w", "toggle audio browser"),
 	),
@@ -74,7 +85,7 @@ type App struct {
 	cfg           *Config
 	editor        *Editor
 	repl          *TidalRepl
-	console       *Console
+	replConsole   *Console
 	sclang        *SCLangRepl
 	scConsole     *Console
 	qs            *QuickSelect
@@ -82,6 +93,7 @@ type App struct {
 	sampleBrowser *SampleBrowser
 	active        tea.Model
 	activeConsole *Console
+	h, w          int
 }
 
 func NewApp(cfg *Config) *App {
@@ -91,7 +103,7 @@ func NewApp(cfg *Config) *App {
 		cfg:           cfg,
 		repl:          repl,
 		sclang:        sclang,
-		console:       NewConsole(0, 10),
+		replConsole:   NewConsole(0, 10),
 		scConsole:     NewConsole(10, 0),
 		editor:        NewEditor(repl.Send),
 		qs:            NewQuickSelect(),
@@ -119,17 +131,19 @@ func (a *App) setActiveConsole(val string) {
 	case "sclang":
 		a.activeConsole = a.scConsole
 	case "console":
-		a.activeConsole = a.console
+		a.activeConsole = a.replConsole
 	default:
-		a.activeConsole = a.console
+		a.activeConsole = a.replConsole
 	}
 }
 
 func (a *App) openFile(path string) tea.Cmd {
 	a.fileBrowser.SetActive(false)
 	a.SetActive(a.editor)
-	a.editor.e.SetStatusMessage(path)
-	return a.editor.load(path)
+	return tea.Sequence(
+		a.editor.load(path),
+		a.editor.e.SetStatusMessage(path),
+	)
 }
 
 func (a *App) playAudio(path string) tea.Cmd {
@@ -139,7 +153,8 @@ func (a *App) playAudio(path string) tea.Cmd {
 }
 
 func (a *App) Init() tea.Cmd {
-	a.activeConsole = a.console
+	a.activeConsole = a.replConsole
+	a.activeConsole.SetActive(true)
 	a.SetActive(a.editor)
 	a.qs.SetOnSelect(func(item *selectItem) tea.Cmd {
 		if item == nil {
@@ -169,34 +184,44 @@ func (a *App) Init() tea.Cmd {
 	)
 }
 
-func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		// pop over so get desired height without calcs
-		a.qs.SetSize(msg.Width/2, msg.Height/2)
-		a.fileBrowser.SetSize(msg.Width/2, msg.Height)
+func (a *App) SetSize(width, height int) {
+	a.w = width
+	a.h = height
+	// pop over so get desired height without calcs
+	a.qs.SetSize(a.w/2, a.h/2)
+	a.fileBrowser.SetSize(a.w/2, a.h)
 
-		// side samples width
-		sw := msg.Width / 3
-		if sw < 16 {
-			sw = 16
-		}
+	ch, sw := 0, 0
 
-		// console height
-		ch := msg.Height / 8
+	// console height
+	if a.activeConsole != nil {
+		ch = a.h / 4
 		if ch < 10 {
 			ch = 10
 		}
+		a.replConsole.SetSize(a.w, ch)
+		a.scConsole.SetSize(a.w, ch)
+	}
+	// side samples width
+	if a.sampleBrowser.Active() {
+		sw = a.w / 3
+		if sw < 16 {
+			sw = 16
+		}
+		a.sampleBrowser.SetSize(sw, a.h-ch-3)
+	}
 
-		a.console.SetSize(msg.Width, ch)
-		a.scConsole.SetSize(msg.Width, ch)
+	a.editor.SetSize(a.w-sw, a.h-ch-1) // Reserve space for console
+	return
+}
 
-		a.sampleBrowser.SetSize(sw, msg.Height-ch-2)
-		_, cmd := a.editor.SetSize(msg.Width-sw, msg.Height-(ch)) // Reserve space for console
-		return a, cmd
+func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		a.SetSize(msg.Width, msg.Height)
 
 	case consoleMsg:
-		a.console.AddLine(string(msg))
+		a.replConsole.AddLine(string(msg))
 		return a, listenConsole(a.repl.out)
 
 	case sclangMsg:
@@ -225,20 +250,46 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.fileBrowser.SetActive(true)
 			a.active = a.fileBrowser
 			return a, a.editor.e.SetStatusMessage("file browser focused")
-		case key.Matches(msg, defaultKeyMap.FocusAudioBrowser):
-			a.sampleBrowser.SetActive(!a.sampleBrowser.Active())
-			if a.sampleBrowser.Active() {
-				a.active = a.sampleBrowser
-				return a, a.editor.e.SetStatusMessage("audio browser")
-			} else {
-				a.active = a.editor
-				return a, nil
-			}
-		case key.Matches(msg, defaultKeyMap.FocusEditor):
-			return a, a.focusEditor()
 		case key.Matches(msg, defaultKeyMap.FocusConsole):
 			a.active = a.activeConsole
 			return a, a.editor.e.SetStatusMessage("console")
+		case key.Matches(msg, defaultKeyMap.ToggleReplConsole):
+			a.scConsole.SetActive(a.replConsole.Active())
+			a.replConsole.SetActive(!a.replConsole.Active())
+			if a.replConsole.Active() {
+				a.activeConsole = a.replConsole
+				a.active = a.activeConsole
+				a.SetSize(a.w, a.h)
+				return a, a.editor.e.SetStatusMessage("repl console")
+			}
+			a.activeConsole = nil
+			a.SetSize(a.w, a.h)
+			return a, a.focusEditor()
+		case key.Matches(msg, defaultKeyMap.ToggleSclangConsole):
+			a.replConsole.SetActive(a.scConsole.Active())
+			a.scConsole.SetActive(!a.scConsole.Active())
+			if a.scConsole.Active() {
+				a.activeConsole = a.scConsole
+				a.active = a.activeConsole
+				a.SetSize(a.w, a.h)
+				return a, a.editor.e.SetStatusMessage("sclang console")
+			}
+			a.activeConsole = nil
+			a.SetSize(a.w, a.h)
+			return a, a.focusEditor()
+		case key.Matches(msg, defaultKeyMap.ToggleAudioBrowser):
+			a.sampleBrowser.SetActive(!a.sampleBrowser.Active())
+			if a.sampleBrowser.Active() {
+				a.active = a.sampleBrowser
+				a.SetSize(a.w, a.h)
+				return a, a.editor.e.SetStatusMessage("audio browser")
+			}
+			a.active = a.editor
+			a.SetSize(a.w, a.h)
+			return a, nil
+		case key.Matches(msg, defaultKeyMap.FocusEditor):
+			a.SetSize(a.w, a.h)
+			return a, a.focusEditor()
 		}
 	}
 
@@ -257,6 +308,10 @@ func (a *App) View() string {
 	if a.fileBrowser.Active() {
 		return a.fileBrowser.View()
 	}
+	cv := ""
+	if a.activeConsole != nil && a.activeConsole.Active() {
+		cv = a.activeConsole.View()
+	}
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -265,6 +320,6 @@ func (a *App) View() string {
 			a.editor.View(),
 			a.sampleBrowser.View(),
 		),
-		a.activeConsole.View(),
+		cv,
 	)
 }

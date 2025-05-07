@@ -17,6 +17,7 @@ var (
 type Console struct {
 	Lines    []string
 	viewport viewport.Model
+	active   bool
 }
 
 func NewConsole(width, height int) *Console {
@@ -24,6 +25,14 @@ func NewConsole(width, height int) *Console {
 		Lines:    make([]string, 0),
 		viewport: viewport.New(width, height),
 	}
+}
+
+func (c *Console) Active() bool {
+	return c.active
+}
+
+func (c *Console) SetActive(active bool) {
+	c.active = active
 }
 
 func (c *Console) SetSize(width, height int) {
@@ -51,5 +60,8 @@ func (c *Console) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (c *Console) View() string {
+  if !c.active {
+    return ""
+  }
 	return consoleStyle.Render(c.viewport.View())
 }

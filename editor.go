@@ -173,7 +173,7 @@ func (m *Editor) save(fname string, content string) tea.Cmd {
 			return m.e.SetStatusMessage(fmt.Sprintf("Error saving file: %v", err))
 		}
 		log.Printf("File %s saved successfully", fname)
-		return vimtea.SetStatusMsg(fmt.Sprintf("saved %s", fname))
+		return m.e.SetStatusMessage(fmt.Sprintf("saved: %s", fname))
 	}
 }
 

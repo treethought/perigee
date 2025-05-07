@@ -99,7 +99,7 @@ func loadSampleMap(rootDir string) (map[string][]audioFile, error) {
 		// Create sample entry
 		sample := audioFile{
 			path:     path,
-			name:     strings.TrimSuffix(filepath.Base(path), ext),
+			name:     filepath.Base(path),
 			fileType: getFileType(path),
 			size:     formatSize(info.Size()),
 		}
@@ -153,18 +153,10 @@ func (m *SampleBrowser) View() string {
 		return ""
 	}
 
-	title := lipgloss.NewStyle().
-		Background(lipgloss.Color("#333333")).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true).
-		Padding(0, 1).
-		Render(fmt.Sprintf("Samples"))
+	style := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder())
 
-	return lipgloss.JoinVertical(
-		lipgloss.Center,
-		title,
-		m.ab.View(),
-	)
+	return style.Render(m.ab.View())
 }
 
 func getFileType(name string) string {
