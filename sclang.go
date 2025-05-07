@@ -43,7 +43,7 @@ func (r *SCLangRepl) Start() error {
 		log.Fatalf("Failed to create stderr pipe: %v", err)
 	}
 
-	log.Println("Starting sclang") 
+	log.Println("Starting sclang")
 	if err := r.cmd.Start(); err != nil {
 		return err
 	}
@@ -55,16 +55,13 @@ func (r *SCLangRepl) Start() error {
 }
 
 func (r *SCLangRepl) Stop() error {
-	log.Println("Stopping SCLang ...")
-
+	log.Println("Stopping sclang ...")
 	if r.stdin != nil {
 		r.stdin.Close()
 	}
-
 	if r.cmd.Process != nil {
 		return r.cmd.Process.Kill()
 	}
-	log.Println(r.cmd.ProcessState.Pid())
 	return nil
 }
 

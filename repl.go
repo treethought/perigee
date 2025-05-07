@@ -24,7 +24,7 @@ type TidalRepl struct {
 func NewTidalRepl(bootFile string) *TidalRepl {
 	return &TidalRepl{
 		out:      make(chan string, 100),
-		bootFile: bootfile,
+		bootFile: expandPath(bootFile),
 	}
 }
 
@@ -60,20 +60,19 @@ func (r *TidalRepl) Start() error {
 		log.Fatalf("Failed to create stderr pipe: %v", err)
 	}
 
-	log.Println("Starting Tidal REPL...")
+  log.Printf("Starting Tidal REPL: %s %s", r.cmd.Path, r.cmd.Args)
 	if err := r.cmd.Start(); err != nil {
+		log.Printf("Failed to start Tidal REPL: %v", err)
 		return err
 	}
 
 	go r.readOutput(r.stdout)
 	go r.readOutput(r.stderr)
-
 	return nil
 }
 
 func (r *TidalRepl) Stop() error {
 	log.Println("Stopping Tidal REPL...")
-
 	if r.stdin != nil {
 		r.stdin.Close()
 	}
@@ -81,8 +80,6 @@ func (r *TidalRepl) Stop() error {
 	if r.cmd.Process != nil {
 		return r.cmd.Process.Kill()
 	}
-	log.Println("Tidal REPL is not running.")
-	log.Println(r.cmd.ProcessState.Pid())
 	return nil
 }
 

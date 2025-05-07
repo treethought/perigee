@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/kujtimiihoxha/vimtea"
 )
 
@@ -20,7 +21,14 @@ type Editor struct {
 func NewEditor(send sendFunc) *Editor {
 	m := &Editor{
 		send: send,
-		e:    vimtea.NewEditor(vimtea.WithFileName("tidal.hs")),
+		e: vimtea.NewEditor(
+			vimtea.WithFileName("tidal.hs"),
+			vimtea.WithStatusStyle(
+				lipgloss.NewStyle().Foreground(lipgloss.Color("#00ff00")).Bold(true),
+			),
+			// set text background black
+			// vimtea.WithTextStyle(lipgloss.NewStyle().Background(lipgloss.Color("#000000"))),
+		),
 	}
 
 	m.e.AddCommand("q", func(b vimtea.Buffer, a []string) tea.Cmd {
@@ -103,7 +111,6 @@ func (m *Editor) load(fname string) tea.Cmd {
 			return m.e.SetStatusMessage(fmt.Sprintf("Error loading file: %v", err))
 		}
 		m.e.GetBuffer().InsertAt(0, 0, string(content))
-		log.Printf("File %s loaded successfully", fname)
 		return m.e.SetStatusMessage(fmt.Sprintf("File %s loaded!", fname))
 	}
 }

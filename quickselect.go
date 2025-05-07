@@ -87,7 +87,6 @@ func (m *QuickSelect) SetSize(w, h int) {
 	m.w = w
 	m.h = h
 	m.l.SetSize(w, h)
-	log.Println("quick select size:", w, h)
 }
 func (m *QuickSelect) Active() bool {
 	return m.active

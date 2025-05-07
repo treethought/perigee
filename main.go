@@ -8,12 +8,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-var bootfile = ""
+var cfg = &Config{
+	Bootfile:      "~/livecoding/tidal/BootTidal.hs",
+	TidalFilesDir: "~/livecoding/tidal",
+	SamplesDir: "~/livecoding/tidalsamples",
+}
 
 func main() {
-	repl := NewTidalRepl(bootfile)
-	sclang := NewSCLangRepl("")
-	a := NewApp(repl, sclang)
+	a := NewApp(cfg)
 
 	defer a.repl.Stop()
 	defer a.sclang.Stop()
@@ -24,9 +26,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer f.Close()
+	log.Println("Starting perigee --------------")
 
 	p := tea.NewProgram(a,
-		tea.WithAltScreen(),
+		// tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
 	if _, err := p.Run(); err != nil {
