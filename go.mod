@@ -9,6 +9,7 @@ replace github.com/kujtimiihoxha/vimtea => github.com/treethought/vimtea v0.0.0-
 require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.5
+	github.com/charmbracelet/harmonica v0.2.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/gopxl/beep/v2 v2.1.1
 	github.com/hypebeast/go-osc v0.0.0-20220308234300-cec5a8a1e5f5

@@ -69,6 +69,14 @@ func (m *MatrixText) SetSize(width, height int) {
 	m.initCharacters()
 }
 
+func (m *MatrixText) Reset() tea.Cmd {
+	m.characters = []Character{}
+	m.tick = 0
+	m.viewport.SetContent("")
+	m.initialized = false
+	return m.Init()
+}
+
 // Initialize characters from text
 func (m *MatrixText) initCharacters() {
 	m.characters = []Character{}

@@ -10,6 +10,7 @@ type Visual interface {
 	SetSize(width, height int)
 	SetActive(bool)
 	Active() bool
+	Reset() tea.Cmd
 }
 
 var viewStyle = lipgloss.NewStyle().
@@ -25,6 +26,9 @@ type VisualsView struct {
 }
 
 func NewVisualsView(models map[string]Visual) *VisualsView {
+	if models == nil {
+		models = make(map[string]Visual)
+	}
 	return &VisualsView{
 		models: models,
 		style:  viewStyle,
@@ -36,7 +40,7 @@ func (v *VisualsView) SetSize(width, height int) {
 	v.h = height
 	fw, fh := viewStyle.GetFrameSize()
 	for _, model := range v.models {
-		model.SetSize(width-fw, height-fh-1)
+		model.SetSize(width-fw-1, height-fh-1)
 	}
 }
 func (v *VisualsView) SetActive(active bool) {
@@ -46,9 +50,10 @@ func (v *VisualsView) Active() bool {
 	return v.active
 }
 
-func (v *VisualsView) SetActiveModel(m string) {
+func (v *VisualsView) SetActiveModel(m string) tea.Cmd {
 	v.activeModel = v.models[m]
 	v.activeModel.SetActive(true)
+	return v.activeModel.Reset()
 }
 
 func (v *VisualsView) Init() tea.Cmd {

@@ -130,10 +130,11 @@ func NewApp(cfg *Config) *App {
 	repl := NewTidalRepl(cfg.Bootfile)
 	sclang := NewSCLangRepl("")
 	matrix := NewMatrixText("perigee")
+	harmonicaVisual := NewHarmonicaVisual()
 	visuals := NewVisualsView(map[string]Visual{
-		"matrix": matrix,
+		"matrix":    matrix,
+		"harmonica": harmonicaVisual,
 	})
-	visuals.SetActiveModel("matrix")
 
 	consoles := map[string]*Console{
 		"osc":    NewConsole(0, 0),
@@ -193,6 +194,7 @@ func (a *App) playAudio(path string) tea.Cmd {
 }
 
 func (a *App) Init() tea.Cmd {
+	a.visuals.SetActiveModel("harmonica")
 	a.setActiveConsole("tidal")
 	a.activeConsole.SetActive(true)
 
@@ -315,8 +317,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, listenSclang(a.sclang.out)
 
 	case oscMsg:
+		cmds = append(cmds, listenOsc(a.osc.Out()))
+		// Pass OSC message to the visuals model first
+		if a.visuals.Active() && a.visuals.activeModel != nil {
+			_, vcmd := a.visuals.activeModel.Update(msg)
+			cmds = append(cmds, vcmd)
+		}
 		a.consoles["osc"].AddLine(string(msg))
-		return a, listenOsc(a.osc.Out())
+		return a, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 
