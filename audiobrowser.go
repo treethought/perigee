@@ -76,6 +76,7 @@ type AudioBrowser struct {
 	t        table.Model
 	onSelect func(path string) tea.Cmd
 
+	prevFilter string
 	fi         textinput.Model
 	filtering  bool
 	query      string
@@ -258,7 +259,12 @@ func (m *AudioBrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, defaultAudioBrowserKeyMap.Back):
 			if m.currentSet != "" {
 				m.currentSet = ""
-				m.t.SetRows(m.setRows)
+				if m.prevFilter != "" {
+					m.filtering = false
+					m.fi.SetValue(m.prevFilter)
+					m.prevFilter = ""
+				}
+				m.applyFilter()
 				return m, nil
 			}
 			m.active = false
@@ -268,6 +274,8 @@ func (m *AudioBrowser) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentSet == "" {
 				sampleSet := m.t.SelectedRow()[0]
 				m.currentSet = sampleSet
+				m.prevFilter = m.fi.Value()
+				m.fi.Reset()
 				m.t.SetRows(m.sampleRows[m.currentSet])
 				return m, nil
 			}
