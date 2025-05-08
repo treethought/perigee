@@ -5,10 +5,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kujtimiihoxha/vimtea"
+	posc "github.com/treethought/perigee/osc"
 )
 
-type consoleMsg string
+type tidalMsg string
 type sclangMsg string
+type oscMsg string
 
 func listenSclang(ch chan string) tea.Cmd {
 	return func() tea.Msg {
@@ -16,9 +18,15 @@ func listenSclang(ch chan string) tea.Cmd {
 	}
 }
 
-func listenConsole(ch chan string) tea.Cmd {
+func listenTidal(ch chan string) tea.Cmd {
 	return func() tea.Msg {
-		return consoleMsg(<-ch)
+		return tidalMsg(<-ch)
+	}
+}
+
+func listenOsc(ch chan string) tea.Cmd {
+	return func() tea.Msg {
+		return oscMsg(<-ch)
 	}
 }
 
@@ -33,13 +41,22 @@ func replStartCmd(repl *TidalRepl) tea.Cmd {
 		return repl.Start()
 	}
 }
+func oscStartCmd(osc *posc.Server) tea.Cmd {
+	return func() tea.Msg {
+		if err := osc.Start(); err != nil {
+			return oscMsg(err.Error())
+		}
+		return nil
+	}
+}
 
 type keyMap struct {
 	Quit                key.Binding
 	FocusEditor         key.Binding
 	FocusConsole        key.Binding
-	ToggleReplConsole   key.Binding
+	ToggleTidalConsole  key.Binding
 	ToggleSclangConsole key.Binding
+	ToggleOscConsole    key.Binding
 	FocusQuickSelect    key.Binding
 	FocusFileBrowser    key.Binding
 	ToggleAudioBrowser  key.Binding
@@ -59,19 +76,22 @@ var defaultKeyMap = keyMap{
 		key.WithKeys("2"),
 		key.WithHelp("2", "toggle console focus"),
 	),
-	ToggleReplConsole: key.NewBinding(
+	ToggleTidalConsole: key.NewBinding(
 		key.WithKeys("ctrl+t"),
-		key.WithHelp("ctrl+t", "toggle repl console"),
+		key.WithHelp("ctrl+t", "toggle tidal console"),
 	),
 	ToggleSclangConsole: key.NewBinding(
 		key.WithKeys("ctrl+l"),
 		key.WithHelp("ctrl+l", "toggle console"),
 	),
-
-	FocusQuickSelect: key.NewBinding(
+	ToggleOscConsole: key.NewBinding(
 		key.WithKeys("ctrl+o"),
-		key.WithHelp("ctrl+o", "open quick select"),
+		key.WithHelp("ctrl+o", "toggle osc console"),
 	),
+	// FocusQuickSelect: key.NewBinding(
+	// 	key.WithKeys("ctrl+o"),
+	// 	key.WithHelp("ctrl+o", "open quick select"),
+	// ),
 	FocusFileBrowser: key.NewBinding(
 		key.WithKeys("ctrl+f"),
 		key.WithHelp("ctrl+f", "open file browser"),
@@ -87,12 +107,14 @@ var defaultKeyMap = keyMap{
 }
 
 type App struct {
-	cfg           *Config
-	editor        *Editor
-	repl          *TidalRepl
-	replConsole   *Console
-	sclang        *SCLangRepl
-	scConsole     *Console
+	cfg    *Config
+	editor *Editor
+	osc    *posc.Server
+	// oscConsole    *Console
+	repl *TidalRepl
+	// replConsole   *Console
+	sclang *SCLangRepl
+	// scConsole     *Console
 	qs            *QuickSelect
 	fileBrowser   *FileBrowser
 	sampleBrowser *SampleBrowser
@@ -100,9 +122,11 @@ type App struct {
 	active        tea.Model
 	activeConsole *Console
 	h, w          int
+	consoles      map[string]*Console
 }
 
 func NewApp(cfg *Config) *App {
+	osc := posc.NewServer(9191)
 	repl := NewTidalRepl(cfg.Bootfile)
 	sclang := NewSCLangRepl("")
 	matrix := NewMatrixText("perigee")
@@ -111,12 +135,18 @@ func NewApp(cfg *Config) *App {
 	})
 	visuals.SetActiveModel("matrix")
 
+	consoles := map[string]*Console{
+		"osc":    NewConsole(0, 0),
+		"sclang": NewConsole(0, 0),
+		"tidal":  NewConsole(0, 0),
+	}
+
 	return &App{
 		cfg:           cfg,
+		osc:           osc,
 		repl:          repl,
 		sclang:        sclang,
-		replConsole:   NewConsole(0, 10),
-		scConsole:     NewConsole(10, 0),
+		consoles:      consoles,
 		editor:        NewEditor(repl.Send),
 		qs:            NewQuickSelect(),
 		fileBrowser:   NewFileBrowser(),
@@ -140,14 +170,11 @@ func (a *App) SetActive(m tea.Model) {
 }
 
 func (a *App) setActiveConsole(val string) {
-	switch val {
-	case "sclang":
-		a.activeConsole = a.scConsole
-	case "console":
-		a.activeConsole = a.replConsole
-	default:
-		a.activeConsole = a.replConsole
+	if c, ok := a.consoles[val]; ok {
+		a.activeConsole = c
+		return
 	}
+	a.activeConsole = a.consoles["tidal"]
 }
 
 func (a *App) openFile(path string) tea.Cmd {
@@ -166,8 +193,9 @@ func (a *App) playAudio(path string) tea.Cmd {
 }
 
 func (a *App) Init() tea.Cmd {
-	a.activeConsole = a.replConsole
+	a.setActiveConsole("tidal")
 	a.activeConsole.SetActive(true)
+
 	a.SetActive(a.editor)
 	a.visuals.SetActive(false)
 	a.qs.SetOnSelect(func(item *selectItem) tea.Cmd {
@@ -193,8 +221,10 @@ func (a *App) Init() tea.Cmd {
 		a.sampleBrowser.SetDirectory(expandPath(a.cfg.SamplesDir)),
 		sclangStartCmd(a.sclang),
 		replStartCmd(a.repl),
-		listenConsole(a.repl.out),
+		oscStartCmd(a.osc),
+		listenTidal(a.repl.out),
 		listenSclang(a.sclang.out),
+		listenOsc(a.osc.Out()),
 		a.editor.load("perigee.tidal"),
 	)
 }
@@ -214,8 +244,9 @@ func (a *App) SetSize(width, height int) {
 		if ch < 10 {
 			ch = 10
 		}
-		a.replConsole.SetSize(a.w, ch)
-		a.scConsole.SetSize(a.w, ch)
+		for _, c := range a.consoles {
+			c.SetSize(a.w, ch)
+		}
 	}
 
 	if a.visuals.Active() {
@@ -239,6 +270,34 @@ func (a *App) SetSize(width, height int) {
 	return
 }
 
+func (a *App) selectConsole(c string) tea.Cmd {
+	var selected *Console
+	for n, cc := range a.consoles {
+		if n == c {
+			cc.SetActive(true)
+			selected = cc
+			continue
+		}
+		cc.SetActive(false)
+	}
+
+	if selected == nil {
+		a.activeConsole = nil
+		a.SetSize(a.w, a.h)
+		return a.focusEditor()
+	}
+
+	a.activeConsole = selected
+	a.active = a.activeConsole
+	a.SetSize(a.w, a.h)
+
+	if a.activeConsole != nil {
+		return a.editor.e.SetStatusMessage(c)
+	}
+	return a.focusEditor()
+
+}
+
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := []tea.Cmd{}
 
@@ -247,13 +306,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.SetSize(msg.Width, msg.Height)
 		return a, nil
 
-	case consoleMsg:
-		a.replConsole.AddLine(string(msg))
-		return a, listenConsole(a.repl.out)
+	case tidalMsg:
+		a.consoles["tidal"].AddLine(string(msg))
+		return a, listenTidal(a.repl.out)
 
 	case sclangMsg:
-		a.scConsole.AddLine(string(msg))
+		a.consoles["sclang"].AddLine(string(msg))
 		return a, listenSclang(a.sclang.out)
+
+	case oscMsg:
+		a.consoles["osc"].AddLine(string(msg))
+		return a, listenOsc(a.osc.Out())
 
 	case tea.KeyMsg:
 
@@ -280,30 +343,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, defaultKeyMap.FocusConsole):
 			a.active = a.activeConsole
 			return a, a.editor.e.SetStatusMessage("console")
-		case key.Matches(msg, defaultKeyMap.ToggleReplConsole):
-			a.scConsole.SetActive(a.replConsole.Active())
-			a.replConsole.SetActive(!a.replConsole.Active())
-			if a.replConsole.Active() {
-				a.activeConsole = a.replConsole
-				a.active = a.activeConsole
-				a.SetSize(a.w, a.h)
-				return a, a.editor.e.SetStatusMessage("repl console")
-			}
-			a.activeConsole = nil
-			a.SetSize(a.w, a.h)
-			return a, a.focusEditor()
+		case key.Matches(msg, defaultKeyMap.ToggleTidalConsole):
+			return a, a.selectConsole("tidal")
 		case key.Matches(msg, defaultKeyMap.ToggleSclangConsole):
-			a.replConsole.SetActive(a.scConsole.Active())
-			a.scConsole.SetActive(!a.scConsole.Active())
-			if a.scConsole.Active() {
-				a.activeConsole = a.scConsole
-				a.active = a.activeConsole
-				a.SetSize(a.w, a.h)
-				return a, a.editor.e.SetStatusMessage("sclang console")
-			}
-			a.activeConsole = nil
-			a.SetSize(a.w, a.h)
-			return a, a.focusEditor()
+			return a, a.selectConsole("sclang")
+		case key.Matches(msg, defaultKeyMap.ToggleOscConsole):
+			return a, a.selectConsole("osc")
+
 		case key.Matches(msg, defaultKeyMap.ToggleAudioBrowser):
 			a.sampleBrowser.SetActive(!a.sampleBrowser.Active())
 			if a.sampleBrowser.Active() {

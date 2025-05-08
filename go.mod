@@ -11,6 +11,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/gopxl/beep/v2 v2.1.1
+	github.com/hypebeast/go-osc v0.0.0-20220308234300-cec5a8a1e5f5
 	github.com/kujtimiihoxha/vimtea v0.0.2
 )
 

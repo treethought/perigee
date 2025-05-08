@@ -26,10 +26,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer f.Close()
-	log.Println("Starting perigee --------------")
 
+  log.Println("---------- perigee ----------")
 	p := tea.NewProgram(a,
-		// tea.WithAltScreen(),
+		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
 	if _, err := p.Run(); err != nil {
