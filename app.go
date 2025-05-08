@@ -43,6 +43,7 @@ type keyMap struct {
 	FocusQuickSelect    key.Binding
 	FocusFileBrowser    key.Binding
 	ToggleAudioBrowser  key.Binding
+	ToggleVisuals       key.Binding
 }
 
 var defaultKeyMap = keyMap{
@@ -79,6 +80,10 @@ var defaultKeyMap = keyMap{
 		key.WithKeys("ctrl+w"),
 		key.WithHelp("ctrl+w", "toggle audio browser"),
 	),
+	ToggleVisuals: key.NewBinding(
+		key.WithKeys("ctrl+p"),
+		key.WithHelp("ctrl+p", "toggle visuals"),
+	),
 }
 
 type App struct {
@@ -91,6 +96,7 @@ type App struct {
 	qs            *QuickSelect
 	fileBrowser   *FileBrowser
 	sampleBrowser *SampleBrowser
+	visuals       *VisualsView
 	active        tea.Model
 	activeConsole *Console
 	h, w          int
@@ -99,6 +105,12 @@ type App struct {
 func NewApp(cfg *Config) *App {
 	repl := NewTidalRepl(cfg.Bootfile)
 	sclang := NewSCLangRepl("")
+	matrix := NewMatrixText("perigee")
+	visuals := NewVisualsView(map[string]Visual{
+		"matrix": matrix,
+	})
+	visuals.SetActiveModel("matrix")
+
 	return &App{
 		cfg:           cfg,
 		repl:          repl,
@@ -109,6 +121,7 @@ func NewApp(cfg *Config) *App {
 		qs:            NewQuickSelect(),
 		fileBrowser:   NewFileBrowser(),
 		sampleBrowser: NewSampleBrowser(),
+		visuals:       visuals,
 	}
 }
 
@@ -156,6 +169,7 @@ func (a *App) Init() tea.Cmd {
 	a.activeConsole = a.replConsole
 	a.activeConsole.SetActive(true)
 	a.SetActive(a.editor)
+	a.visuals.SetActive(false)
 	a.qs.SetOnSelect(func(item *selectItem) tea.Cmd {
 		if item == nil {
 			return nil
@@ -175,6 +189,7 @@ func (a *App) Init() tea.Cmd {
 		a.qs.Init(),
 		a.fileBrowser.Init(),
 		a.sampleBrowser.Init(),
+		a.visuals.Init(),
 		a.sampleBrowser.SetDirectory(expandPath(a.cfg.SamplesDir)),
 		sclangStartCmd(a.sclang),
 		replStartCmd(a.repl),
@@ -191,7 +206,7 @@ func (a *App) SetSize(width, height int) {
 	a.qs.SetSize(a.w/2, a.h/2)
 	a.fileBrowser.SetSize(a.w/2, a.h)
 
-	ch, sw := 0, 0
+	ch, vw, sw := 0, 0, 0
 
 	// console height
 	if a.activeConsole != nil {
@@ -202,6 +217,15 @@ func (a *App) SetSize(width, height int) {
 		a.replConsole.SetSize(a.w, ch)
 		a.scConsole.SetSize(a.w, ch)
 	}
+
+	if a.visuals.Active() {
+		vw = a.w / 3
+		if vw < 10 {
+			vw = 10
+		}
+		a.visuals.SetSize(vw, a.h-ch-3)
+	}
+
 	// side samples width
 	if a.sampleBrowser.Active() {
 		sw = a.w / 3
@@ -211,14 +235,17 @@ func (a *App) SetSize(width, height int) {
 		a.sampleBrowser.SetSize(sw, a.h-ch-3)
 	}
 
-	a.editor.SetSize(a.w-sw, a.h-ch-1) // Reserve space for console
+	a.editor.SetSize(a.w-sw-vw, a.h-ch-1) // Reserve space for console
 	return
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.SetSize(msg.Width, msg.Height)
+		return a, nil
 
 	case consoleMsg:
 		a.replConsole.AddLine(string(msg))
@@ -234,7 +261,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.active = a.editor
 		}
 
-		if a.active == a.editor && !(a.editor.e.GetMode() == vimtea.ModeNormal) {
+		if a.active == a.editor && (a.editor.e.GetMode() != vimtea.ModeNormal) {
 			_, cmd := a.editor.Update(msg)
 			return a, cmd
 		}
@@ -287,13 +314,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.active = a.editor
 			a.SetSize(a.w, a.h)
 			return a, nil
+		case key.Matches(msg, defaultKeyMap.ToggleVisuals):
+			a.visuals.SetActive(!a.visuals.Active())
+			if a.visuals.Active() {
+				// no need to focus visuals
+				a.SetSize(a.w, a.h)
+				return a, a.editor.e.SetStatusMessage("visuals enabled")
+			}
+			a.active = a.editor
+			a.SetSize(a.w, a.h)
+			return a, nil
 		case key.Matches(msg, defaultKeyMap.FocusEditor):
 			a.SetSize(a.w, a.h)
 			return a, a.focusEditor()
 		}
 	}
 
-	cmds := []tea.Cmd{}
+	if a.visuals.Active() {
+		_, vmsg := a.visuals.Update(msg)
+		cmds = append(cmds, vmsg)
+	}
 
 	_, cmd := a.active.Update(msg)
 	cmds = append(cmds, cmd)
@@ -308,6 +348,12 @@ func (a *App) View() string {
 	if a.fileBrowser.Active() {
 		return a.fileBrowser.View()
 	}
+
+	vv := ""
+	if a.visuals.Active() {
+		vv = a.visuals.View()
+	}
+
 	cv := ""
 	if a.activeConsole != nil && a.activeConsole.Active() {
 		cv = a.activeConsole.View()
@@ -318,6 +364,7 @@ func (a *App) View() string {
 		lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			a.editor.View(),
+			vv,
 			a.sampleBrowser.View(),
 		),
 		cv,

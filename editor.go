@@ -15,6 +15,14 @@ var defaultFile = "perigee.tidal"
 
 type sendFunc func(s string) error
 
+type sentMsg string
+
+func sentMsgCmd(s string) tea.Cmd {
+	return func() tea.Msg {
+		return sentMsg(s)
+	}
+}
+
 type Editor struct {
 	e           vimtea.Editor
 	send        sendFunc
@@ -95,7 +103,10 @@ func NewEditor(send sendFunc) *Editor {
 			if err := m.send(content); err != nil {
 				return vimtea.SetStatusMsg(fmt.Sprintf("Error sending command: %v", err))
 			}
-			return vimtea.SetStatusMsg("sent!")
+			return tea.Batch(
+				vimtea.SetStatusMsg("sent!"),
+				sentMsgCmd(content),
+			)
 		},
 	})
 
@@ -130,7 +141,6 @@ func (m *Editor) comment(b vimtea.Buffer) tea.Cmd {
 	start, end := cursor, cursor
 	if m.e.GetMode() == vimtea.ModeVisual {
 		start, end = m.e.GetSelectionBoundary()
-		log.Printf("visual start: %v, end: %v", start, end)
 	}
 
 	for r := start.Row; r <= end.Row; r++ {
