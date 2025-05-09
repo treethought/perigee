@@ -158,7 +158,7 @@ func NewApp(cfg *Config) *App {
 
 func (a *App) focusEditor() tea.Cmd {
 	a.fileBrowser.SetActive(false)
-	a.sampleBrowser.SetActive(false)
+	// a.sampleBrowser.SetActive(false)
 	if a.active != a.editor {
 		a.editor.e.SetMode(vimtea.ModeNormal)
 	}
@@ -274,6 +274,7 @@ func (a *App) SetSize(width, height int) {
 
 func (a *App) selectConsole(c string) tea.Cmd {
 	var selected *Console
+
 	for n, cc := range a.consoles {
 		if n == c {
 			cc.SetActive(true)
@@ -283,7 +284,8 @@ func (a *App) selectConsole(c string) tea.Cmd {
 		cc.SetActive(false)
 	}
 
-	if selected == nil {
+	if selected == nil || selected == a.activeConsole {
+		a.activeConsole.SetActive(false)
 		a.activeConsole = nil
 		a.SetSize(a.w, a.h)
 		return a.focusEditor()
@@ -318,12 +320,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case oscMsg:
 		cmds = append(cmds, listenOsc(a.osc.Out()))
+		if a.consoles["osc"].Active() {
+			a.consoles["osc"].AddLine(string(msg))
+		}
 		// Pass OSC message to the visuals model first
 		if a.visuals.Active() && a.visuals.activeModel != nil {
 			_, vcmd := a.visuals.activeModel.Update(msg)
 			cmds = append(cmds, vcmd)
 		}
-		a.consoles["osc"].AddLine(string(msg))
 		return a, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
@@ -356,7 +360,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, defaultKeyMap.ToggleSclangConsole):
 			return a, a.selectConsole("sclang")
 		case key.Matches(msg, defaultKeyMap.ToggleOscConsole):
-			return a, a.selectConsole("osc")
+			cmds = []tea.Cmd{a.selectConsole("osc")}
+			if !a.consoles["osc"].Active() {
+				cmds = append(cmds, listenOsc(a.osc.Out()))
+			}
+			return a, tea.Batch(cmds...)
 
 		case key.Matches(msg, defaultKeyMap.ToggleAudioBrowser):
 			a.sampleBrowser.SetActive(!a.sampleBrowser.Active())
@@ -369,15 +377,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.SetSize(a.w, a.h)
 			return a, nil
 		case key.Matches(msg, defaultKeyMap.ToggleVisuals):
+			// TODO: determine if we need to listen for osc based on active visual
+			// currently enabling if osc console hasn't been activated to start osc listen
+			var cmd tea.Cmd = nil
+			if !a.consoles["osc"].Active() {
+				cmd = listenOsc(a.osc.Out())
+			}
 			a.visuals.SetActive(!a.visuals.Active())
 			if a.visuals.Active() {
 				// no need to focus visuals
 				a.SetSize(a.w, a.h)
-				return a, a.editor.e.SetStatusMessage("visuals enabled")
+				return a, tea.Batch(cmd, a.editor.e.SetStatusMessage("visuals enabled"))
 			}
 			a.active = a.editor
 			a.SetSize(a.w, a.h)
-			return a, nil
+			return a, cmd
 		case key.Matches(msg, defaultKeyMap.FocusEditor):
 			a.SetSize(a.w, a.h)
 			return a, a.focusEditor()
