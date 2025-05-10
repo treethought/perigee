@@ -4,7 +4,7 @@ go 1.23.5
 
 toolchain go1.23.8
 
-replace github.com/kujtimiihoxha/vimtea => github.com/treethought/vimtea v0.0.0-20250507020649-cd8e1920db8a
+replace github.com/kujtimiihoxha/vimtea => github.com/treethought/vimtea v0.0.0-20250510145935-416cfbb6f8f5
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0
@@ -41,7 +41,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.design/x/clipboard v0.7.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
-	golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
+	golang.org/x/exp/shiny v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
 	golang.org/x/image v0.14.0 // indirect
 	golang.org/x/mobile v0.0.0-20231127183840-76ac6878050a // indirect
 	golang.org/x/sync v0.13.0 // indirect

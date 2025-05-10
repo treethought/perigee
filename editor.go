@@ -27,6 +27,7 @@ type Editor struct {
 	e           vimtea.Editor
 	send        sendFunc
 	currentFile string
+	prevFile    string
 }
 
 func NewEditor(send sendFunc) *Editor {
@@ -62,6 +63,17 @@ func NewEditor(send sendFunc) *Editor {
 		Description: "Comment selected region",
 		Handler: func(b vimtea.Buffer) tea.Cmd {
 			return m.comment(b)
+		},
+	})
+	m.e.AddBinding(vimtea.KeyBinding{
+		Key:         "ctrl+^",
+		Mode:        vimtea.ModeNormal,
+		Description: "Previous file",
+		Handler: func(b vimtea.Buffer) tea.Cmd {
+			if m.prevFile == "" {
+				return vimtea.SetStatusMsg("No previous file")
+			}
+			return m.load(m.prevFile)
 		},
 	})
 	m.e.AddBinding(vimtea.KeyBinding{
@@ -164,6 +176,9 @@ func (m *Editor) comment(b vimtea.Buffer) tea.Cmd {
 
 func (m *Editor) load(fname string) tea.Cmd {
 	return func() tea.Msg {
+		if m.currentFile != "" {
+			m.prevFile = m.currentFile
+		}
 		content, err := os.ReadFile(fname)
 		if err != nil {
 			log.Printf("Error loading file %s: %v", fname, err)
