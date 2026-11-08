@@ -4,7 +4,7 @@ go 1.23.5
 
 toolchain go1.23.8
 
-replace github.com/kujtimiihoxha/vimtea => github.com/treethought/vimtea v0.0.0-20250510145935-416cfbb6f8f5
+replace github.com/kujtimiihoxha/vimtea => ../vimtea
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0

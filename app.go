@@ -320,6 +320,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case oscMsg:
 		cmds = append(cmds, listenOsc(a.osc.Out()))
+		_, ecmd := a.editor.Update(msg)
+		cmds = append(cmds, ecmd)
 		if a.consoles["osc"].Active() {
 			a.consoles["osc"].AddLine(string(msg))
 		}

@@ -332,8 +332,8 @@ func (m *Editor) storePatternData(lines []string, startRow, endRow int) {
 			log.Println("check line for sounds: ", line)
 			sounds := extractSoundsFromLineRegex(line)
 			for _, sound := range sounds {
-				// Store the sound and its position
-				data.sounds[sound] = Pos{Row: i, Col: strings.Index(line, sound)}
+				// Store the sound and its position (convert to absolute buffer position)
+				data.sounds[sound] = Pos{Row: startRow + i, Col: strings.Index(line, sound)}
 			}
 			m.patterns[id] = data
 
